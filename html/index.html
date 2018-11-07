@@ -1,0 +1,365 @@
+<html>
+<head>
+<title>Computer Vision Project</title>
+<link href='http://fonts.googleapis.com/css?family=Nunito:300|Crimson+Text|Droid+Sans+Mono' rel='stylesheet' type='text/css'>
+<link rel="stylesheet" title="Default" href="styles/github.css">
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.min.js"></script>  
+
+<link rel="stylesheet" href="highlighting/styles/default.css">
+<script src="highlighting/highlight.pack.js"></script>
+
+<style type="text/css">
+body {
+	margin: 0px;
+	width: 100%;
+	font-family: 'Crimson Text', serif;
+	font-size: 20px;
+	background: #fcfcfc;
+}
+h1 {
+	font-family: 'Nunito', sans-serif;
+	font-weight: normal;
+	font-size: 28px;
+	margin: 25px 0px 0px 0px;
+	text-transform: lowercase;
+
+}
+
+h2 {
+	font-family: 'Nunito', sans-serif;
+	font-weight: normal;
+	font-size: 32px;
+	margin: 15px 0px 35px 0px;
+	color: #333;	
+	word-spacing: 3px;
+}
+
+h3 {
+	font-family: 'Nunito', sans-serif;
+	font-weight: normal;
+	font-size: 26px;
+	margin: 10px 0px 10px 0px;
+	color: #333;
+	word-spacing: 2px;
+}
+h4 {
+	font-family: 'Nunito', sans-serif;
+	font-weight: normal;
+	font-size: 22px;
+	margin: 10px 0px 10px 0px;
+	color: #333;
+	word-spacing: 2px;
+}
+
+h5 {
+	font-family: 'Nunito', sans-serif;
+	font-weight: normal;
+	font-size: 18px;
+	margin: 10px 0px 10px 0px;
+	color: #111;
+	word-spacing: 2px;
+}
+
+p, li {
+	color: #444;
+}
+
+a {
+	color: #DE3737;
+}
+
+.container {
+	margin: 0px auto 0px auto;
+	width: 960px;
+}
+
+#header {
+	background: #333;
+	width: 100%;
+}
+
+#headersub {
+	color: #ccc;
+	width: 960px;
+	margin: 0px auto 0px auto;
+	padding: 20px 0px 20px 0px;
+}
+
+.chart {
+	width: 480px;
+}
+.lol {
+	font-size: 16px;
+	color: #888;
+	font-style: italic;
+}
+.sep {
+	height: 1px;
+	width: 100%;
+	background: #999;
+	margin: 20px 0px 20px 0px;
+}
+.footer{
+	font-size: 16px;
+}
+.latex {
+	width: 100%;
+}
+
+.latex img {
+	display: block;
+	margin: 0px auto 0px auto;
+}
+
+pre {
+	font-family: 'Droid Sans Mono';
+	font-size: 14px;
+}
+
+td img {
+  vertical-align: middle;
+}
+
+#contents a {
+}
+</style>
+<script type="text/javascript">
+    hljs.initHighlightingOnLoad();
+</script>
+</head>
+<body>
+<div id="header" >
+<div id="headersub">
+<h1><span style="color: #DE3737">Jianing Yang</span></h1>
+</div>
+</div>
+<div class="container">
+
+<h2>Project 6: Deep Learning</h2>
+
+<p>
+The goal of this project is to attack the same scene recognition task in Project 4 with deep learning methodology. In part 1, we will build a relatively simple CNN and train it from scratch to classify the scene images. In part 2, we will use a deeper CNN pre-trained on a much larger dataset and fine-tune it to address the problem we are interested in. The accuracy for part 1 is 55.3%; the accuracy for part 2 is 87.3%.
+</p>
+
+<h3>Part 1: Train CNN from scratch</h3>
+
+<p>
+To get the best possible performance out of a simple CNN, we did the following steps:
+</p>
+
+<h4>Jittering</h4>
+
+<p>
+One problem with the 15 scene dataset is that it is small. In order to obtain more training data, one effective way is to horizontally mirror the images.
+</p>
+
+<pre><code>
+% jitter the images by mirroring
+idx_to_flip = randi(size(im, 4), [1, size(im, 4)/2]);
+
+im(:, :, :, idx_to_flip) = fliplr(im(:, :, :, idx_to_flip));
+</code></pre>
+
+<p>
+In this implementation, we randomly select half of each batch to mirror the training images.
+</p>
+
+<h4>Zero Center</h4>
+
+<p>
+The images in the dataset have different intensity levels, yet our network may only be able to operate on one intensity level. Therefore, we subtract the mean from each image to make the images zero-centered.
+</p>
+
+<pre><code>
+% zero-center training image
+cur_image = cur_image - single(mean2(cur_image));
+</code></pre>
+
+<h4>Regularization</h4>
+
+<p>
+To make our network more robust against overfitting, we add a dropout layer immediately before the last fully connected layer.
+</p>
+
+<pre><code>
+net.layers{end+1} = struct('type', 'dropout', 'rate', 0.5) ;
+</code></pre>
+
+<h4>Making CNN Deeper</h4>
+
+<p>
+Experiments have shown that deeper CNN gives better result. Additionally, the max-pooling layer in the starter code down-sample the resolution by a factor of 7, which is overly lossy. We re-structure our CNN to add a new convolution layer, a new max-pooling layer and a new ReLU layer. We also reduce the size of the max-pooling layer so that we preserver more resolution as we progressing down the network.
+</p>
+
+<pre><code>
+net.layers = {} ;
+
+net.layers{end+1} = struct('type', 'conv', ...
+                           'weights', {{f*randn(9,9,1,10, 'single'), zeros(1, 10, 'single')}}, ...
+                           'stride', 1, ...
+                           'pad', 0, ...
+                           'name', 'conv1') ;
+
+                       
+net.layers{end+1} = struct('type', 'pool', ...
+                           'method', 'max', ...
+                           'pool', [2 2], ...
+                           'stride', 2, ...
+                           'pad', 0) ;
+
+net.layers{end+1} = struct('type', 'relu') ;
+
+net.layers{end+1} = struct('type', 'dropout', 'rate', 0.5) ;
+
+net.layers{end+1} = struct('type', 'conv', ...
+                           'weights', {{f*randn(9,9,1,10, 'single'), zeros(1, 10, 'single')}}, ...
+                           'stride', 1, ...
+                           'pad', 0, ...
+                           'name', 'conv2') ;
+                       
+net.layers{end+1} = struct('type', 'pool', ...
+                           'method', 'max', ...
+                           'pool', [2 2], ...
+                           'stride', 2, ...
+                           'pad', 0) ;
+
+net.layers{end+1} = struct('type', 'relu') ;
+
+net.layers{end+1} = struct('type', 'dropout', 'rate', 0.5) ;
+
+net.layers{end+1} = struct('type', 'conv', ...
+                           'weights', {{f*randn(10,10,10,15, 'single'), zeros(1, 15, 'single')}}, ...
+                           'stride', 1, ...
+                           'pad', 0, ...
+                           'name', 'fc1') ;
+                      
+% Loss layer
+net.layers{end+1} = struct('type', 'softmaxloss') ;
+</code></pre>
+
+<p>
+In this implementation, we use in total two convolution layers (not counting the last fully connected layer). We now only down-sample by a factor of 2 in each max-pooling layer. We use a dropout layer with dropout rate 0.5 between every two convolution layers.
+</p>
+
+<h4>Normalization</h4>
+
+<p>
+As the network grows deeper, the gradient tends to vanish during back propagation. To fight against this, we add a normalization layer immediately after each convolution layer.
+</p>
+
+<pre><code>
+% insert batch normalization layers here
+net = insertBnorm(net, 1);
+net = insertBnorm(net, 6);
+</code></pre>
+
+<h4>Result</h4>
+
+<pre><code>
+     layer|    0|    1|    2|     3|     4|      5|    6|    7|     8|     9|     10|  11|     12|
+      type|input| conv|bnorm| mpool|  relu|dropout| conv|bnorm| mpool|  relu|dropout|conv|softmxl|
+      name|  n/a|conv1|     |layer2|layer3| layer4|conv2|     |layer6|layer7| layer8| fc1|layer10|
+----------|-----|-----|-----|------|------|-------|-----|-----|------|------|-------|----|-------|
+   support|  n/a|    9|    1|     2|     1|      1|    9|    1|     2|     1|      1|  10|      1|
+  filt dim|  n/a|    1|  n/a|   n/a|   n/a|    n/a|    1|  n/a|   n/a|   n/a|    n/a|  10|    n/a|
+filt dilat|  n/a|    1|  n/a|   n/a|   n/a|    n/a|    1|  n/a|   n/a|   n/a|    n/a|   1|    n/a|
+ num filts|  n/a|   10|  n/a|   n/a|   n/a|    n/a|   10|  n/a|   n/a|   n/a|    n/a|  15|    n/a|
+    stride|  n/a|    1|    1|     2|     1|      1|    1|    1|     2|     1|      1|   1|      1|
+       pad|  n/a|    0|    0|     0|     0|      0|    0|    0|     0|     0|      0|   0|      0|
+----------|-----|-----|-----|------|------|-------|-----|-----|------|------|-------|----|-------|
+   rf size|  n/a|    9|    9|    10|    10|     10|   26|   26|    28|    28|     28|  64|     64|
+ rf offset|  n/a|    5|    5|   5.5|   5.5|    5.5| 13.5| 13.5|  14.5|  14.5|   14.5|32.5|   32.5|
+ rf stride|  n/a|    1|    1|     2|     2|      2|    2|    2|     4|     4|      4|   4|      4|
+----------|-----|-----|-----|------|------|-------|-----|-----|------|------|-------|----|-------|
+ data size|   64|   56|   56|    28|    28|     28|   20|   20|    10|    10|     10|   1|      1|
+data depth|    1|   10|   10|    10|    10|     10|   10|   10|    10|    10|     10|  15|      1|
+  data num|   50|   50|   50|    50|    50|     50|   50|   50|    50|    50|     50|  50|      1|
+----------|-----|-----|-----|------|------|-------|-----|-----|------|------|-------|----|-------|
+  data mem|800KB|  6MB|  6MB|   1MB|   1MB|    1MB|781KB|781KB| 195KB| 195KB|  195KB| 3KB|     4B|
+ param mem|  n/a|  3KB|  80B|    0B|    0B|     0B|  3KB|  80B|    0B|    0B|     0B|59KB|     0B|
+
+parameter memory|65KB (1.7e+04 parameters)|
+     data memory| 19MB (for batch size 50)|
+</code></pre>
+
+<center>
+<img width="70%" src="img/FirstLayerFilters1.png"/>
+<img width="70%" src="img/trainingCurves1.png"/>
+</center>
+
+<p>
+We use batchSize = 50, numEpochs = 100 and learningRate = logspace(-3, -4, 100) to train the network. We obtain a best accuracy of 55.3% on the validation set.
+</p>
+
+<h3>Part 2: Fine-tune a pre-trained deep network</h3>
+
+<p>
+In this part, we fine-tune the pre-trained VGG-F on the 15-scene dataset. The VGG-F network was trained on 224 by 224 RGB zero-centered images. In order to use this network, we have to prepare our training data in the same way. In addition, we need to add dropout layers towards the end of the network to fight against overfitting. Lastly, we need to swap out the last two layers to let the network output a size 15 vector corresponding to the 15 categories we are predicting.
+</p>
+
+<pre><code>
+     layer|    0|    1|    2|    3|      4|    5|    6|    7|      8|    9|   10|   11|   12|   13|   14|     15|   16|   17|
+      type|input| conv| relu|  lrn|  mpool| conv| relu|  lrn|  mpool| conv| relu| conv| relu| conv| relu|  mpool| conv| relu|
+      name|  n/a|conv1|relu1|norm1|  pool1|conv2|relu2|norm2|  pool2|conv3|relu3|conv4|relu4|conv5|relu5|  pool5|  fc6|relu6|
+----------|-----|-----|-----|-----|-------|-----|-----|-----|-------|-----|-----|-----|-----|-----|-----|-------|-----|-----|
+   support|  n/a|   11|    1|    1|      3|    5|    1|    1|      3|    3|    1|    3|    1|    3|    1|      3|    6|    1|
+  filt dim|  n/a|    3|  n/a|  n/a|    n/a|   64|  n/a|  n/a|    n/a|  256|  n/a|  256|  n/a|  256|  n/a|    n/a|  256|  n/a|
+filt dilat|  n/a|    1|  n/a|  n/a|    n/a|    1|  n/a|  n/a|    n/a|    1|  n/a|    1|  n/a|    1|  n/a|    n/a|    1|  n/a|
+ num filts|  n/a|   64|  n/a|  n/a|    n/a|  256|  n/a|  n/a|    n/a|  256|  n/a|  256|  n/a|  256|  n/a|    n/a| 4096|  n/a|
+    stride|  n/a|    4|    1|    1|      2|    1|    1|    1|      2|    1|    1|    1|    1|    1|    1|      2|    1|    1|
+       pad|  n/a|    0|    0|    0|0x1x0x1|    2|    0|    0|0x1x0x1|    1|    0|    1|    0|    1|    0|0x1x0x1|    0|    0|
+----------|-----|-----|-----|-----|-------|-----|-----|-----|-------|-----|-----|-----|-----|-----|-----|-------|-----|-----|
+   rf size|  n/a|   11|   11|   11|     19|   51|   51|   51|     67|   99|   99|  131|  131|  163|  163|    195|  355|  355|
+ rf offset|  n/a|    6|    6|    6|     10|   10|   10|   10|     18|   18|   18|   18|   18|   18|   18|     34|  114|  114|
+ rf stride|  n/a|    4|    4|    4|      8|    8|    8|    8|     16|   16|   16|   16|   16|   16|   16|     32|   32|   32|
+----------|-----|-----|-----|-----|-------|-----|-----|-----|-------|-----|-----|-----|-----|-----|-----|-------|-----|-----|
+ data size|  224|   54|   54|   54|     27|   27|   27|   27|     13|   13|   13|   13|   13|   13|   13|      6|    1|    1|
+data depth|    3|   64|   64|   64|     64|  256|  256|  256|    256|  256|  256|  256|  256|  256|  256|    256| 4096| 4096|
+  data num|   50|   50|   50|   50|     50|   50|   50|   50|     50|   50|   50|   50|   50|   50|   50|     50|   50|   50|
+----------|-----|-----|-----|-----|-------|-----|-----|-----|-------|-----|-----|-----|-----|-----|-----|-------|-----|-----|
+  data mem| 29MB| 36MB| 36MB| 36MB|    9MB| 36MB| 36MB| 36MB|    8MB|  8MB|  8MB|  8MB|  8MB|  8MB|  8MB|    2MB|800KB|800KB|
+ param mem|  n/a| 91KB|   0B|   0B|     0B|  2MB|   0B|   0B|     0B|  2MB|   0B|  2MB|   0B|  2MB|   0B|     0B|144MB|   0B|
+
+     layer|     18|   19|   20|     21|   22|     23|
+      type|dropout| conv| relu|dropout| conv|softmxl|
+      name|layer18|  fc7|relu7|layer21|  fc8|layer23|
+----------|-------|-----|-----|-------|-----|-------|
+   support|      1|    1|    1|      1|    1|      1|
+  filt dim|    n/a| 4096|  n/a|    n/a| 4096|    n/a|
+filt dilat|    n/a|    1|  n/a|    n/a|    1|    n/a|
+ num filts|    n/a| 4096|  n/a|    n/a|   15|    n/a|
+    stride|      1|    1|    1|      1|    1|      1|
+       pad|      0|    0|    0|      0|    0|      0|
+----------|-------|-----|-----|-------|-----|-------|
+   rf size|    355|  355|  355|    355|  355|    355|
+ rf offset|    114|  114|  114|    114|  114|    114|
+ rf stride|     32|   32|   32|     32|   32|     32|
+----------|-------|-----|-----|-------|-----|-------|
+ data size|      1|    1|    1|      1|    1|      1|
+data depth|   4096| 4096| 4096|   4096|   15|      1|
+  data num|     50|   50|   50|     50|   50|      1|
+----------|-------|-----|-----|-------|-----|-------|
+  data mem|  800KB|800KB|800KB|  800KB|  3KB|     4B|
+ param mem|     0B| 64MB|   0B|     0B|240KB|     0B|
+
+parameter memory|217MB (5.7e+07 parameters)|
+     data memory| 315MB (for batch size 50)|
+</code></pre>
+
+<p>
+The layers we added/modified are layer 18, layer 21, layer 22 and layer 23.
+</p>
+
+<center>
+<img width="70%" src="img/FirstLayerFilters2.png"/>
+<img width="70%" src="img/trainingCurves2.png"/>
+</center>
+
+<p>
+We use batchSize = 50, numEpochs = 10 and learningRate = 0.0001 to train the network. We obtain a best accuracy of an impressive 87.3% on the validation set.
+</p>
+
+
+</body>
+</html>
+
